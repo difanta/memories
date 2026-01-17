@@ -144,6 +144,20 @@
         </NcButton>
       </NcAppSettingsSection>
 
+      <NcAppSettingsSection id="free-space" name="Free Space" v-if="isNative">
+        <NcButton @click="freeSpace()" type="secondary" v-if="!isScanning"> Run scan new </NcButton>
+        <div v-else class="scan-progress">
+          <div class="progress-bar">
+            <div class="progress-fill" :style="{ width: scanProgress * 100 + '%' }"></div>
+          </div>
+          <NcButton @click="cancelScan()" type="tertiary-no-background" class="cancel-btn">
+            <template #icon>
+              <CloseIcon :size="20" />
+            </template>
+          </NcButton>
+        </div>
+      </NcAppSettingsSection>
+
       <NcAppSettingsSection id="folders-settings" :name="names.folders">
         <NcTextField
           :label="t('memories', 'Folders Path')"
@@ -213,6 +227,9 @@ const NcAppSettingsDialog = () => import('@nextcloud/vue/dist/Components/NcAppSe
 const NcAppSettingsSection = () => import('@nextcloud/vue/dist/Components/NcAppSettingsSection.js');
 const NcCheckboxRadioSwitch = () => import('@nextcloud/vue/dist/Components/NcCheckboxRadioSwitch.js');
 
+import CloseIcon from 'vue-material-design-icons/Close.vue';
+import { freeSpaceScan } from '@native';
+
 import MultiPathSelectionModal from '@components/modal/MultiPathSelectionModal.vue';
 
 import type { IConfig } from '@typings';
@@ -227,6 +244,7 @@ export default defineComponent({
     NcAppSettingsSection,
     NcCheckboxRadioSwitch,
     MultiPathSelectionModal,
+    CloseIcon,
   },
 
   mixins: [UserConfig],
@@ -237,6 +255,9 @@ export default defineComponent({
 
   data: () => ({
     localFolders: [] as nativex.LocalFolderConfig[],
+    isScanning: false,
+    scanProgress: 0,
+    scanAbortController: null as AbortController | null,
     names: {
       header: t('memories', 'Memories Settings'),
       general: t('memories', 'General'),
@@ -404,6 +425,31 @@ export default defineComponent({
       this.$router.replace('/nxsetup');
     },
 
+    async freeSpace() {
+      if (this.isScanning) return;
+      this.isScanning = true;
+      this.scanProgress = 0;
+      this.scanAbortController = new AbortController();
+
+      try {
+        await freeSpaceScan(
+          (p) => {
+            if (p.total > 0) this.scanProgress = p.current / p.total;
+          },
+          this.scanAbortController.signal
+        );
+      } finally {
+        this.isScanning = false;
+        this.scanAbortController = null;
+      }
+    },
+
+    cancelScan() {
+      if (this.scanAbortController) {
+        this.scanAbortController.abort();
+      }
+    },
+
     async logout() {
       if (
         await utils.confirmDestructive({
@@ -454,6 +500,34 @@ export default defineComponent({
 
     .checkbox-radio-switch-radio {
       margin: 2px 16px; // indent for radio button
+    }
+  }
+
+  .scan-progress {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    max-width: 300px;
+
+    .progress-bar {
+      flex-grow: 1;
+      height: 6px;
+      background-color: var(--color-border);
+      border-radius: 3px;
+      overflow: hidden;
+
+      .progress-fill {
+        height: 100%;
+        background-color: var(--color-primary);
+        transition: width 0.2s ease;
+      }
+    }
+
+    .cancel-btn {
+      min-width: 32px !important;
+      width: 32px !important;
+      padding: 0 !important;
     }
   }
 }
