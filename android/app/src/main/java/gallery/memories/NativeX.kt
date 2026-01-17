@@ -58,6 +58,8 @@ class NativeX(private val mCtx: MainActivity) {
         val SHARE_BLOB = Regex("^/api/share/blobs$")
 
         val CONFIG_ALLOW_MEDIA = Regex("^/api/config/allow_media/\\d+$")
+
+        val PENDING_REMOTE_CHECK = Regex("^/api/pending/remote$")
     }
 
     @JavascriptInterface
@@ -183,6 +185,58 @@ class NativeX(private val mCtx: MainActivity) {
         }
     }
 
+    @JavascriptInterface
+    fun freeSpaceScan() {
+        mCtx.threadPool.submit {
+            // Get backed up system images
+            val images = query.getBackedUpSystemImages()
+            
+            // Calculate total size formatted as MB or GB
+            val totalSize = images.sumOf { it.size }
+            val totalSizeMb = totalSize / 1024.0 / 1024.0
+            val totalSizeGb = totalSizeMb / 1024.0
+            
+            val sizeString = if (totalSizeGb > 1.0) {
+                String.format("%.2f GB", totalSizeGb)
+            } else {
+                String.format("%.2f MB", totalSizeMb)
+            }
+            
+            val count = images.size
+
+            mCtx.runOnUiThread {
+                if (count == 0) {
+                    androidx.appcompat.app.AlertDialog.Builder(mCtx)
+                        .setTitle("Free Space")
+                        .setMessage("No backed-up photos found on this device.")
+                        .setPositiveButton("OK") { _, _ -> }
+                        .show()
+                } else {
+                    androidx.appcompat.app.AlertDialog.Builder(mCtx)
+                        .setTitle("Free Space")
+                        .setMessage("Found $count backed-up photos taking up $sizeString. Do you want to remove them from your device?")
+                        .setPositiveButton("Delete") { _, _ ->
+                            mCtx.threadPool.submit {
+                                try {
+                                    val auids = images.map { it.auid() }
+                                    query.delete(auids, false)
+                                    mCtx.runOnUiThread {
+                                        Toast.makeText(mCtx, "Freed $sizeString", Toast.LENGTH_SHORT).show()
+                                    }
+                                } catch (e: Exception) {
+                                    mCtx.runOnUiThread {
+                                        Toast.makeText(mCtx, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
+                        }
+                        .setNegativeButton("Cancel") { _, _ -> }
+                        .show()
+                }
+            }
+        }
+    }
+
     fun handleRequest(request: WebResourceRequest): WebResourceResponse {
         val path = request.url.path ?: return makeErrorResponse()
 
@@ -265,6 +319,8 @@ class NativeX(private val mCtx: MainActivity) {
                 doMediaSync(true) // separate thread
             }
             makeResponse("done")
+        } else if (path.matches(API.PENDING_REMOTE_CHECK)) {
+            makeResponse(query.getPendingRemoteCheck())
         } else {
             throw Exception("Path did not match any known API route: $path")
         }

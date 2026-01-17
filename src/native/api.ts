@@ -20,6 +20,13 @@ export const NAPI = {
   DAYS: () => `${BASE_URL}/api/days`,
 
   /**
+   * Pending remote check API.
+   * @regex ^/api/pending/remote$
+   * @returns {IPhoto[]} for all pending photos.
+   */
+  PENDING_REMOTE_CHECK: () => `${BASE_URL}/api/pending/remote`,
+
+  /**
    * Local photos API.
    * @regex ^/api/days/\d+$
    * @param dayId Day ID to fetch photos for
@@ -188,6 +195,11 @@ export type NativeX = {
    * @param value Value of remote
    */
   setHasRemote: (auids: string, buids: string, value: boolean) => void;
+
+  /**
+   * Scan for local files that are already backed up and prompt the user to delete them.
+   */
+  freeSpaceScan: () => void;
 };
 
 /** The native interface is a global object that is injected by the native app. */

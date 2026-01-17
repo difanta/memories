@@ -44,4 +44,10 @@ interface PhotoDao {
 
     @Query("UPDATE photos SET has_remote=:v WHERE auid IN (:auids) OR buid IN (:buids)")
     fun setHasRemote(auids: List<String>, buids: List<String>, v: Boolean)
+
+    @Query("SELECT local_id FROM photos WHERE has_remote = 1")
+    fun getBackedUpPhotoIds(): List<Long>
+
+    @Query("SELECT * FROM photos WHERE has_remote = 0 AND bucket_id IN (:bucketIds)")
+    fun getPendingPhotos(bucketIds: List<String>): List<Photo>
 }

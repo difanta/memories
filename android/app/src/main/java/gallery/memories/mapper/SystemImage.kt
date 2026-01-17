@@ -379,16 +379,27 @@ class SystemImage {
         }
 
         /**
-         * Get image or video by a list of IDs
+         * Get image or video by a list of IDs.
+         * Chunks the query to avoid SQLite limits (max 999 variables per query usually).
          * @param ctx Context - application context
          * @param ids List<Long> - list of IDs
          * @return List<SystemImage>
          */
         fun getByIds(ctx: Context, ids: List<Long>): List<SystemImage> {
-            val selection = MediaStore.Images.Media._ID + " IN (" + ids.joinToString(",") + ")"
-            val images = cursor(ctx, IMAGE_URI, selection, null, null).toList()
-            if (images.size == ids.size) return images
-            return images + cursor(ctx, VIDEO_URI, selection, null, null).toList()
+            val results = mutableListOf<SystemImage>()
+            
+            // Process in chunks of 500 to be safe
+            ids.chunked(500).forEach { chunk ->
+                val selection = MediaStore.Images.Media._ID + " IN (" + chunk.joinToString(",") + ")"
+                
+                // Query Images
+                results.addAll(cursor(ctx, IMAGE_URI, selection, null, null).toList())
+                
+                // Query Videos
+                results.addAll(cursor(ctx, VIDEO_URI, selection, null, null).toList())
+            }
+            
+            return results
         }
     }
 

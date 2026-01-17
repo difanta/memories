@@ -137,6 +137,19 @@ class TimelineQuery(private val mCtx: MainActivity) {
     }
 
     /**
+     * Get all local system images that are backed up (has_remote = 1)
+     * @return List of SystemImage
+     */
+    fun getBackedUpSystemImages(): List<SystemImage> {
+        // Query Database for all local_ids where has_remote=1
+        val ids = mPhotoDao.getBackedUpPhotoIds()
+        if (ids.isEmpty()) return listOf()
+
+        return SystemImage.getByIds(mCtx, ids)
+    }
+
+
+    /**
      * Get the days response for local files.
      * @return JSON response
      */
@@ -432,7 +445,13 @@ class TimelineQuery(private val mCtx: MainActivity) {
      * @param value Value to set
      */
     fun setHasRemote(auids: List<String>, buids: List<String>, value: Boolean) {
-        mPhotoDao.setHasRemote(auids, buids, value)
+        val chunkSize = 500
+        auids.chunked(chunkSize).forEach { batch ->
+            mPhotoDao.setHasRemote(batch, emptyList(), value)
+        }
+        buids.chunked(chunkSize).forEach { batch ->
+            mPhotoDao.setHasRemote(emptyList(), batch, value)
+        }
     }
 
     /**
@@ -458,4 +477,17 @@ class TimelineQuery(private val mCtx: MainActivity) {
             }
             mConfigService.enabledBucketIds = enabled
         }
+
+    /**
+     * Get pending photos for remote check.
+     * @return JSON response
+     */
+    fun getPendingRemoteCheck(): JSONArray {
+        return mPhotoDao.getPendingPhotos(mConfigService.enabledBucketIds).map {
+            JSONObject()
+                .put(Fields.Photo.AUID, it.auid)
+                .put(Fields.Photo.BUID, it.buid)
+                .put(Fields.Photo.DAYID, it.dayId)
+        }.let { JSONArray(it) }
+    }
 }

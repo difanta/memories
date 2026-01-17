@@ -140,6 +140,12 @@
         </NcButton>
       </NcAppSettingsSection>
 
+      <NcAppSettingsSection id="free-space" :name="t('memories', 'Device Folders')" v-if="isNative">
+        <NcButton @click="freeSpace()" type="secondary">
+          {{ t('memories', 'Run initial device setup') }}
+        </NcButton>
+      </NcAppSettingsSection>
+
       <NcAppSettingsSection id="folders-settings" :name="names.folders">
         <NcTextField
           :label="t('memories', 'Folders Path')"
@@ -394,6 +400,10 @@ export default defineComponent({
 
     runNxSetup() {
       this.$router.replace('/nxsetup');
+    },
+
+    freeSpace() {
+      nativex.freeSpaceScan();
     },
 
     async logout() {
