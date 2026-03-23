@@ -117,8 +117,10 @@ final class ImageController extends GenericApiController
             $previewManager = \OC::$server->get(\OCP\IPreview::class);
             $previewService = \OC::$server->get(\OC\Preview\PreviewService::class);
 
-            $requestedFileIds = array_map(static fn ($bodyFile) => (int) $bodyFile['fileid'], $files);
-            $availablePreviews = $previewService->getAvailablePreviews($requestedFileIds);
+            // For checking max previews
+
+            /** @var \OC\Preview\PreviewService */
+            $previewService = \OC::$server->get(\OC\Preview\PreviewService::class);
 
             // stream the response
             $out->setHeader('Content-Type: application/octet-stream');
@@ -133,7 +135,7 @@ final class ImageController extends GenericApiController
                 try {
                     // Make sure max preview exists
                     $hasMax = false;
-                    foreach ($availablePreviews[$fileid] as $preview) {
+                    foreach ($previewService->getAvailablePreviewsForFile($fileid) as $preview) {
                         if ($preview->isMax()) {
                             $hasMax = true;
 
