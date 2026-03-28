@@ -510,6 +510,7 @@ final class ImageController extends GenericApiController
     private function refreshPreviews(\OCP\Files\File $file): void
     {
         try {
+            /** @var \OC\Preview\PreviewService */
             $previewService = \OC::$server->get(\OC\Preview\PreviewService::class);
 
             // Delete all available previews
