@@ -145,16 +145,21 @@
       </NcAppSettingsSection>
 
       <NcAppSettingsSection id="free-space" name="Free Space" v-if="isNative">
-        <NcButton @click="freeSpace()" type="secondary" v-if="!isScanning"> Run scan new </NcButton>
-        <div v-else class="scan-progress">
-          <div class="progress-bar">
-            <div class="progress-fill" :style="{ width: scanProgress * 100 + '%' }"></div>
+        <NcButton @click="freeSpace()" type="secondary" v-if="!isScanning"> Run scan </NcButton>
+        <div v-else class="scan-progress-container">
+          <div class="scan-progress">
+            <div class="progress-bar">
+              <div class="progress-fill" :style="{ width: scanProgress * 100 + '%' }"></div>
+            </div>
+            <NcButton ref="cancelBtn" @click="cancelScan()" type="tertiary-no-background" class="cancel-btn">
+              <template #icon>
+                <CloseIcon :size="20" />
+              </template>
+            </NcButton>
           </div>
-          <NcButton @click="cancelScan()" type="tertiary-no-background" class="cancel-btn">
-            <template #icon>
-              <CloseIcon :size="20" />
-            </template>
-          </NcButton>
+          <div class="scan-text">
+            {{ t('memories', 'Scanned {current} of {total} local images', { current: scanCurrent, total: scanTotal }) }}
+          </div>
         </div>
       </NcAppSettingsSection>
 
@@ -257,6 +262,8 @@ export default defineComponent({
     localFolders: [] as nativex.LocalFolderConfig[],
     isScanning: false,
     scanProgress: 0,
+    scanCurrent: 0,
+    scanTotal: 0,
     scanAbortController: null as AbortController | null,
     names: {
       header: t('memories', 'Memories Settings'),
@@ -277,8 +284,9 @@ export default defineComponent({
 
   computed: {
     refs() {
-      return this.$refs as {
+      return this.$refs as unknown as {
         multiPathModal: InstanceType<typeof MultiPathSelectionModal>;
+        cancelBtn?: { $el: HTMLElement };
       };
     },
 
@@ -431,9 +439,15 @@ export default defineComponent({
       this.scanProgress = 0;
       this.scanAbortController = new AbortController();
 
+      this.$nextTick(() => {
+        this.refs.cancelBtn?.$el?.focus();
+      });
+
       try {
         await freeSpaceScan(
           (p) => {
+            this.scanCurrent = p.current;
+            this.scanTotal = p.total;
             if (p.total > 0) this.scanProgress = p.current / p.total;
           },
           this.scanAbortController.signal
@@ -529,6 +543,17 @@ export default defineComponent({
       width: 32px !important;
       padding: 0 !important;
     }
+  }
+
+  .scan-progress-container {
+    width: 100%;
+    max-width: 300px;
+  }
+
+  .scan-text {
+    margin-top: 4px;
+    font-size: 0.8em;
+    color: var(--color-text-maxcontrast);
   }
 }
 </style>

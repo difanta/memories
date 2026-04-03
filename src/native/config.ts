@@ -46,57 +46,68 @@ export async function freeSpaceScan(
 ) {
   if (!nativex?.freeSpaceScan) return;
 
-  nativex.toast?.('Scanning...', false);
-
   try {
     const res = await fetch(NAPI.PENDING_REMOTE_CHECK());
     if (res.ok) {
       const pending: { auid: string; buid: string; dayid: number }[] = await res.json();
-      const byDay: Record<number, typeof pending> = {};
 
       const total = pending.length;
       let current = 0;
 
-      for (const p of pending) {
-        (byDay[p.dayid] ??= []).push(p);
-      }
+      let matchesA: string[] = [];
+      let matchesB: string[] = [];
 
-      for (const dayId of Object.keys(byDay)) {
-        if (signal?.aborted) return;
-
-        try {
-          // Fetch server day
-          const sRes = await fetch(API.DAY(dayId));
-          if (!sRes.ok) {
-            current += byDay[parseInt(dayId)].length;
-            onProgress?.({ current, total });
-            continue;
-          }
-
-          const sPhotos: any[] = await sRes.json();
-          const pPhotos = byDay[parseInt(dayId)];
-
-          const matchesA: string[] = [];
-          const matchesB: string[] = [];
-
-          const serverAuids = new Set(sPhotos.map((p) => p.auid));
-          const serverBuids = new Set(sPhotos.map((p) => p.buid));
-
-          for (const p of pPhotos) {
-            if (p.auid && serverAuids.has(p.auid)) matchesA.push(p.auid);
-            else if (p.buid && serverBuids.has(p.buid)) matchesB.push(p.buid);
-          }
-
-          if (matchesA.length || matchesB.length) {
-            nativex.setHasRemote(JSON.stringify(matchesA), JSON.stringify(matchesB), true);
-          }
-
-          current += pPhotos.length;
-          onProgress?.({ current, total });
-        } catch (e) {
-          console.error(e);
+      const flush = () => {
+        if (matchesA.length || matchesB.length) {
+          nativex.setHasRemote(JSON.stringify(matchesA), JSON.stringify(matchesB), true);
+          matchesA = [];
+          matchesB = [];
         }
-      }
+      };
+
+      const queue = [...pending];
+      const LIMIT = 8;
+
+      const runWorker = async () => {
+        while (queue.length && !signal?.aborted) {
+          const p = queue.shift();
+          if (!p) break;
+
+          try {
+            let found = false;
+
+            // Check AUID
+            if (p.auid) {
+              const r = await fetch(API.IMAGE_INFO(parseInt(p.auid)));
+              if (r.ok) {
+                matchesA.push(p.auid);
+                found = true;
+              }
+            }
+
+            // Check BUID if AUID not found
+            if (!found && p.buid) {
+              const r = await fetch(API.IMAGE_INFO(parseInt(p.buid)));
+              if (r.ok) {
+                matchesB.push(p.buid);
+                found = true;
+              }
+            }
+
+            if (Math.max(matchesA.length, matchesB.length) >= 64) {
+              flush();
+            }
+          } catch (e) {
+            console.error(e);
+          } finally {
+            current++;
+            onProgress?.({ current, total });
+          }
+        }
+      };
+
+      await Promise.all(Array.from({ length: LIMIT }, runWorker));
+      flush();
     }
   } catch (e) {
     console.error(e);
